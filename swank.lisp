@@ -108,7 +108,7 @@
     (*print-pprint-dispatch*  . ,*backtrace-pprint-dispatch-table*))
   "Pretter settings for printing backtraces.")
 
-(defvar *default-worker-thread-bindings* '()
+(defvar *default-worker-thread-bindings* (default-worker-thread-bindings)
   "An alist to initialize dynamic variables in worker threads.  
 The list has the form ((VAR . VALUE) ...).  Each variable VAR will be
 bound to the corresponding VALUE.")

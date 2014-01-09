@@ -1294,6 +1294,10 @@ If NEWLINE is non-NIL a `(:newline)' is added to the result."
 Depending on the impleimentaion, this function may never return."
    (funcall continuation))
 
+(definterface default-worker-thread-bindings ()
+  "Default value for `swank:*default-worker-thread-bindings*'."
+  '())
+
 (definterface spawn (fn &key name)
   "Create a new thread to call FN.")
 

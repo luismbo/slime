@@ -782,6 +782,13 @@
   (mp:start-scheduler)
   (funcall continuation))
 
+(defimplementation default-worker-thread-bindings ()
+  (if (member :common-graphics *features*)
+      (remove '*package*
+              (symbol-value (find-symbol "*DEFAULT-CG-BINDINGS*" :cg))
+              :key #'car)
+      nil))
+
 (defimplementation spawn (fn &key name)
   (mp:process-run-function name fn))
 
