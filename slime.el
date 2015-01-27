@@ -91,10 +91,12 @@ the Emacs Lisp package.")
 (setq slime-path (file-name-directory load-file-name))
 
 (defvar slime-lisp-modes '(lisp-mode))
+
 (defvar slime-contribs nil
   "A list of contrib packages to load with SLIME.")
+
 (define-obsolete-variable-alias 'slime-setup-contribs
-'slime-contribs "2.3.2")
+  'slime-contribs "2.3.2")
 
 (defun slime-setup (&optional contribs)
   "Setup Emacs so that lisp-mode buffers always use SLIME.
