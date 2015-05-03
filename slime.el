@@ -221,37 +221,6 @@ The default is nil, as this feature can be a security risk."
 (defvar slime-connect-host-history (list slime-lisp-host))
 (defvar slime-connect-port-history (list (prin1-to-string slime-port)))
 
-(defvar slime-net-valid-coding-systems
-  '((iso-latin-1-unix nil "iso-latin-1-unix")
-    (iso-8859-1-unix  nil "iso-latin-1-unix")
-    (binary           nil "iso-latin-1-unix")
-    (utf-8-unix       t   "utf-8-unix")
-    (emacs-mule-unix  t   "emacs-mule-unix")
-    (euc-jp-unix      t   "euc-jp-unix"))
-  "A list of valid coding systems.
-Each element is of the form: (NAME MULTIBYTEP CL-NAME)")
-
-(defun slime-find-coding-system (name)
-  "Return the coding system for the symbol NAME.
-The result is either an element in `slime-net-valid-coding-systems'
-of nil."
-  (let ((probe (assq name slime-net-valid-coding-systems)))
-    (when (and probe (if (fboundp 'check-coding-system)
-                         (ignore-errors (check-coding-system (car probe)))
-                       (eq (car probe) 'binary)))
-      probe)))
-
-(defcustom slime-net-coding-system
-  (car (cl-find-if 'slime-find-coding-system
-                   slime-net-valid-coding-systems :key 'car))
-  "Coding system used for network connections.
-See also `slime-net-valid-coding-systems'."
-  :type (cons 'choice
-              (mapcar (lambda (x)
-                        (list 'const (car x)))
-                      slime-net-valid-coding-systems))
-  :group 'slime-lisp)
-
 ;;;;; slime-mode
 
 (defgroup slime-mode nil
@@ -953,7 +922,7 @@ For KEYWORD-ARGS see `slime-start'.
 
 Here's an example:
  ((cmucl (\"/opt/cmucl/bin/lisp\" \"-quiet\") :init slime-init-command)
-  (acl (\"acl7\") :coding-system emacs-mule))")
+  (acl (\"acl7\")))")
 
 (defvar slime-default-lisp nil
   "*The name of the default Lisp implementation.
@@ -963,11 +932,10 @@ See `slime-lisp-implementations'")
 (defvar slime-net-processes)
 (defvar slime-default-connection)
 
-(defun slime (&optional command coding-system)
+(defun slime (&optional command)
   "Start an inferior^_superior Lisp and connect to its Swank server."
   (interactive)
-  (let ((inferior-lisp-program (or command inferior-lisp-program))
-        (slime-net-coding-system (or coding-system slime-net-coding-system)))
+  (let ((inferior-lisp-program (or command inferior-lisp-program)))
     (slime-start* (cond ((and command (symbolp command))
                          (slime-lisp-options command))
                         (t (slime-read-interactive-args))))))
@@ -1007,13 +975,7 @@ The rules for selecting the arguments are rather complicated:
                (split-string-and-unquote
                 (read-shell-command "Run lisp: " inferior-lisp-program
                                     'slime-inferior-lisp-program-history))
-             (let ((coding-system
-                    (if (eq 16 (prefix-numeric-value current-prefix-arg))
-                        (read-coding-system "set slime-coding-system: "
-                                            slime-net-coding-system)
-                      slime-net-coding-system)))
-               (list :program program :program-args program-args
-                     :coding-system coding-system)))))))
+             (list :program program :program-args program-args))))))
 
 (defun slime-lisp-options (&optional name)
   (let ((table slime-lisp-implementations))
@@ -1037,7 +999,6 @@ The rules for selecting the arguments are rather complicated:
 
 (cl-defun slime-start (&key (program inferior-lisp-program) program-args
                             directory
-                            (coding-system slime-net-coding-system)
                             (init 'slime-init-command)
                             name
                             (buffer "*inferior-lisp*")
@@ -1052,8 +1013,6 @@ PROGRAM and PROGRAM-ARGS are the filename and argument strings
 INIT is a function that should return a string to load and start
   Swank. The function will be called with the PORT-FILENAME and ENCODING as
   arguments.  INIT defaults to `slime-init-command'.
-CODING-SYSTEM a symbol for the coding system. The default is
-  slime-net-coding-system
 ENV environment variables for the subprocess (see `process-environment').
 INIT-FUNCTION function to call right after the connection is established.
 BUFFER the name of the buffer to use for the subprocess.
@@ -1061,9 +1020,8 @@ NAME a symbol to describe the Lisp implementation
 DIRECTORY change to this directory before starting the process.
 "
   (let ((args (list :program program :program-args program-args :buffer buffer
-                    :coding-system coding-system :init init :name name
-                    :init-function init-function :env env)))
-    (slime-check-coding-system coding-system)
+                    :init init :name name :init-function init-function
+                    :env env)))
     (when (slime-bytecode-stale-p)
       (slime-urge-bytecode-recompile))
     (let ((proc (slime-maybe-start-lisp program program-args env
@@ -1074,7 +1032,7 @@ DIRECTORY change to this directory before starting the process.
 (defun slime-start* (options)
   (apply #'slime-start options))
 
-(defun slime-connect (host port &optional _coding-system interactive-p)
+(defun slime-connect (host port &optional interactive-p)
   "Connect to a running Swank server. Return the connection."
   (interactive (list (read-from-minibuffer
                       "Host: " (cl-first slime-connect-host-history)
@@ -1206,11 +1164,11 @@ See `slime-start'.")
 
 (defun slime-start-swank-server (process args)
   "Start a Swank server on the inferior lisp."
-  (cl-destructuring-bind (&key coding-system init &allow-other-keys) args
+  (cl-destructuring-bind (&key init &allow-other-keys) args
     (with-current-buffer (process-buffer process)
       (make-local-variable 'slime-inferior-lisp-args)
       (setq slime-inferior-lisp-args args)
-      (let ((str (funcall init (slime-swank-port-file) coding-system)))
+      (let ((str (funcall init (slime-swank-port-file))))
         (goto-char (process-mark process))
         (insert-before-markers str)
         (process-send-string process str)))))
@@ -1221,8 +1179,9 @@ See `slime-start'."
   (with-current-buffer (process-buffer process)
     slime-inferior-lisp-args))
 
-;; XXX load-server & start-server used to be separated. maybe that was  better.
-(defun slime-init-command (port-filename _coding-system)
+;; XXX load-server & start-server used to be separated. Maybe that was
+;; better.
+(defun slime-init-command (port-filename)
   "Return a string to initialize Lisp."
   (let ((loader (if (file-name-absolute-p slime-backend)
                     slime-backend
@@ -1271,8 +1230,7 @@ See `slime-start'."
            (let ((port (slime-read-swank-port))
                  (args (slime-inferior-lisp-args process)))
              (slime-delete-swank-port-file 'message)
-             (let ((c (slime-connect slime-lisp-host port
-                                     (plist-get args :coding-system))))
+             (let ((c (slime-connect slime-lisp-host port)))
                (slime-set-inferior-process c process))))
           ((and retries (zerop retries))
            (message "Gave up connecting to Swank after %d attempts." attempt))
@@ -1417,25 +1375,6 @@ first line of the file."
                  'process-kill-without-query)))
       (funcall fun process nil))))
 
-;;;;; Coding system madness
-
-(defun slime-check-coding-system (coding-system)
-  "Signal an error if CODING-SYSTEM isn't a valid coding system."
-  (interactive)
-  (let ((props (slime-find-coding-system coding-system)))
-    (unless props
-      (error "Invalid slime-net-coding-system: %s. %s"
-             coding-system (mapcar #'car slime-net-valid-coding-systems)))
-    (when (and (cl-second props) (boundp 'default-enable-multibyte-characters))
-      (cl-assert default-enable-multibyte-characters))
-    t))
-
-(defun slime-coding-system-mulibyte-p (coding-system)
-  (cl-second (slime-find-coding-system coding-system)))
-
-(defun slime-coding-system-cl-name (coding-system)
-  (cl-third (slime-find-coding-system coding-system)))
-
 ;;; Interface
 (defun slime-net-send (sexp proc)
   "Send a SEXP to Lisp over the socket PROC.
@@ -1448,15 +1387,6 @@ EVAL'd by Lisp."
                          payload)))
     (slime-log-event sexp)
     (process-send-string proc string)))
-
-(defun slime-safe-encoding-p (coding-system string)
-  "Return true iff CODING-SYSTEM can safely encode STRING."
-  (or (let ((candidates (find-coding-systems-string string))
-            (base (coding-system-base coding-system)))
-        (or (equal candidates '(undecided))
-            (memq base candidates)))
-      (and (not (multibyte-string-p string))
-           (not (slime-coding-system-mulibyte-p coding-system)))))
 
 (defun slime-net-close (process &optional debug)
   (setq slime-net-processes (remove process slime-net-processes))
@@ -1790,9 +1720,6 @@ This is automatically synchronized from Lisp.")
 (slime-def-connection-var slime-machine-instance nil
   "The name of the (remote) machine running the Lisp process.")
 
-(slime-def-connection-var slime-connection-coding-systems nil
-  "Coding systems supported by the Lisp process.")
-
 ;;;;; Connection setup
 
 (defvar slime-connection-counter 0
@@ -1843,9 +1770,7 @@ This is automatically synchronized from Lisp.")
               (slime-lisp-implementation-program) program
               (slime-connection-name) (slime-generate-connection-name name)))
       (cl-destructuring-bind (&key instance ((:type _)) ((:version _))) machine
-        (setf (slime-machine-instance) instance))
-      (cl-destructuring-bind (&key coding-systems) encoding
-        (setf (slime-connection-coding-systems) coding-systems)))
+        (setf (slime-machine-instance) instance)))
     (let ((args (let ((p (slime-inferior-process)))
                   (if p (slime-inferior-lisp-args p)))))
       (let ((name (plist-get args ':name)))

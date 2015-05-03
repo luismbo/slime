@@ -95,10 +95,8 @@ DEDICATED-OUTPUT INPUT OUTPUT IO REPL-RESULTS"
               (with-simple-restart (abort-read
                                     "Abort reading input from Emacs.")
                 (read-user-input-from-emacs)))))
-         (dedicated-output (if *use-dedicated-output-stream*
-                               (open-dedicated-output-stream
-                                connection
-                                (getf properties :coding-system))))
+         (dedicated-output (when *use-dedicated-output-stream*
+                             (open-dedicated-output-stream connection)))
          (in (make-input-stream input-fn))
          (out (or dedicated-output
                   (make-output-stream (make-output-function connection))))
@@ -130,21 +128,19 @@ DEDICATED-OUTPUT INPUT OUTPUT IO REPL-RESULTS"
   "Create a stream that sends output to a specific TARGET in Emacs."
   (make-output-stream (make-output-function-for-target connection target)))
 
-(defun open-dedicated-output-stream (connection coding-system)
+(defun open-dedicated-output-stream (connection)
   "Open a dedicated output connection to the Emacs on SOCKET-IO.
 Return an output stream suitable for writing program output.
 
 This is an optimized way for Lisp to deliver output to Emacs."
-  (let ((socket (socket-quest *dedicated-output-stream-port* nil))
-        (ef (find-external-format-or-lose coding-system)))
+  (let ((socket (socket-quest *dedicated-output-stream-port* nil)))
     (unwind-protect
          (let ((port (local-port socket)))
-           (encode-message `(:open-dedicated-output-stream ,port
-                                                           ,coding-system)
+           (encode-message `(:open-dedicated-output-stream ,port)
                            (connection.socket-io connection))
            (let ((dedicated (accept-connection
                              socket
-                             :external-format ef
+                             :external-format nil
                              :buffering *dedicated-output-stream-buffering*
                              :timeout 30)))
              (authenticate-client dedicated)
@@ -188,10 +184,10 @@ This is an optimized way for Lisp to deliver output to Emacs."
 ;;; We always redirect the standard streams to Emacs while evaluating
 ;;; an RPC. This is done with simple dynamic bindings.
 
-(defslimefun create-repl (target &key coding-system)
+(defslimefun create-repl (target)
   (assert (eq target nil))
   (let ((conn *emacs-connection*))
-    (initialize-streams-for-connection conn `(:coding-system ,coding-system))
+    (initialize-streams-for-connection conn nil)
     (with-struct* (connection. @ conn)
       (setf (@ env)
             `((*standard-output* . ,(@ user-output))

@@ -517,7 +517,7 @@ example here we define two programs:
 @lisp
 (setq slime-lisp-implementations
       '((cmucl ("cmucl" "-quiet"))
-        (sbcl ("/opt/sbcl/bin/sbcl") :coding-system utf-8-unix)))
+        (sbcl ("/opt/sbcl/bin/sbcl"))))
 @end lisp
 
 @vindex slime-default-lisp
@@ -528,7 +528,7 @@ specified in @code{slime-default-lisp}, or the first item of the list will be us
 The elements of the list should look like
 
 @lisp
-(NAME (PROGRAM PROGRAM-ARGS...) &key CODING-SYSTEM INIT INIT-FUNCTION ENV)
+(NAME (PROGRAM PROGRAM-ARGS...) &key INIT INIT-FUNCTION ENV)
 @end lisp
 
 @table @code
@@ -539,14 +539,12 @@ is the filename of the program.  Note that the filename can contain
 spaces.
 @item PROGRAM-ARGS
 is a list of command line arguments.
-@item CODING-SYSTEM
-the coding system for the connection.  (@pxref{slime-net-coding-system})x
 @item INIT
-should be a function which takes two arguments: a filename and a
-character encoding.  The function should return a Lisp expression as a
-string which instructs Lisp to start the Swank server and to write the
-port number to the file.  At startup, @SLIME{} starts the Lisp process
-and sends the result of this function to Lisp's standard input.  As
+should be a function which takes a filename as argument.  The function
+should return a Lisp expression as a string which instructs Lisp to
+start the Swank server and to write the port number to the file.  At
+startup, @SLIME{} starts the Lisp process and sends the result of this
+function to Lisp's standard input.  As
 default, @code{slime-init-command} is used.  An example is shown in
 @ref{init-example,,Loading Swank faster}.
 @item INIT-FUNCTION
@@ -1713,27 +1711,6 @@ which don't share a common file system or if they share the filesystem
 but have different layouts, as is the case with @acronym{SMB}-based
 file sharing.
 
-@anchor{slime-net-coding-system}
-@vindex slime-net-coding-system
-@cindex Unicode
-@cindex UTF-8
-@cindex ASCII
-@cindex LATIN-1
-@cindex Character Encoding
-@item slime-net-coding-system
-If you want to transmit Unicode characters between Emacs and the Lisp
-system, you should customize this variable.  E.g., if you use SBCL, you
-can set:
-@example
-(setq slime-net-coding-system 'utf-8-unix)
-@end example
-To actually display Unicode characters you also need appropriate
-fonts, otherwise the characters will be rendered as hollow boxes.  If
-you are using Allegro CL and GNU Emacs, you can also
-use @code{emacs-mule-unix} as coding system.  GNU Emacs has often
-nicer fonts for the latter encoding.  (Different encodings can be used
-for different Lisps, see @ref{Multiple Lisps}.)
-
 @end table
 
 @menu
@@ -2010,18 +1987,14 @@ Boolean indicating if the server will continue to accept connections
 after the first one (default: @code{NIL}). For ``long-running'' lisp processes
 to which you want to be able to connect from time to time,
 specify @code{:dont-close t}
-@item :CODING-SYSTEM
-String designating the encoding to be used to communicate between the
-Emacs and Lisp.
 @end table
 
 So the more complete example will be
 @example
-(swank:create-server :port 4005  :dont-close t :coding-system "utf-8-unix")
+(swank:create-server :port 4005  :dont-close t")
 @end example
 On the emacs side you will use something like
 @example
-(setq slime-net-coding-system 'utf-8-unix)
 (slime-connect "127.0.0.1" 4005))
 @end example
 to connect to this lisp image from the same machine.
@@ -3344,7 +3317,6 @@ keybinding (if there is one) refer to the function description.
 @c @fcnindex{slime-browse-xrefs}
 @fcnindex{slime-call-defun}
 @fcnindex{slime-calls-who}
-@c @fcnindex{slime-check-coding-system}
 @fcnindex{slime-close-all-sexp}
 @fcnindex{slime-close-parens-at-point}
 @fcnindex{slime-compile-and-load-file}

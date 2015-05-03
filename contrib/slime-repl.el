@@ -102,8 +102,7 @@ current repl's (as per slime-output-buffer) window."
   :group 'slime-repl)
 
 (defcustom slime-repl-history-file-coding-system
-  (cond ((slime-find-coding-system 'utf-8-unix) 'utf-8-unix)
-        (t slime-net-coding-system))
+  'utf-8-unix
   "*The coding system for the history file."
   :type 'symbol
   :group 'slime-repl)
@@ -191,18 +190,16 @@ current repl's (as per slime-output-buffer) window."
 
 (defvar slime-open-stream-hooks)
 
-(defun slime-open-stream-to-lisp (port coding-system)
+(defun slime-open-stream-to-lisp (port)
   (let ((stream (open-network-stream "*lisp-output-stream*"
                                      (slime-with-connection-buffer ()
                                        (current-buffer))
 				     (car (process-contact (slime-connection)))
-                                     port))
-        (emacs-coding-system (car (cl-find coding-system
-                                           slime-net-valid-coding-systems
-                                           :key #'cl-third))))
+                                     port)))
     (slime-set-query-on-exit-flag stream)
     (set-process-filter stream 'slime-output-filter)
-    (set-process-coding-system stream emacs-coding-system emacs-coding-system)
+    (when (fboundp 'set-process-coding-system)
+      (set-process-coding-system stream 'binary 'binary))
     (let ((secret (slime-secret)))
       (when secret
 	(slime-net-send secret stream)))
@@ -1696,21 +1693,10 @@ expansion will be added to the REPL's history.)"
            (pop-to-buffer repl-buffer)
            (goto-char (point-max))))))
 
-(defun slime-repl-choose-coding-system ()
-  (let ((candidates (slime-connection-coding-systems)))
-    (or (cl-find (symbol-name (car default-process-coding-system))
-                 candidates
-                 :test (lambda (s1 s2)
-                         (if (fboundp 'coding-system-equal)
-                             (coding-system-equal (intern s1) (intern s2)))))
-	(car candidates)
-	(error "Can't find suitable coding-system"))))
-
 (defun slime-repl-connected-hook-function ()
   (destructuring-bind (package prompt)
-      (let ((slime-current-thread t)
-	    (cs (slime-repl-choose-coding-system)))
-	(slime-eval `(swank-repl:create-repl nil :coding-system ,cs)))
+      (let ((slime-current-thread t))
+	(slime-eval `(swank-repl:create-repl nil)))
     (setf (slime-lisp-package) package)
     (setf (slime-lisp-package-prompt-string) prompt))
   (slime-hide-inferior-lisp-buffer)
@@ -1728,8 +1714,8 @@ expansion will be added to the REPL's history.)"
     ((:read-aborted thread tag)
      (slime-repl-abort-read thread tag)
      t)
-    ((:open-dedicated-output-stream port coding-system)
-     (slime-open-stream-to-lisp port coding-system)
+    ((:open-dedicated-output-stream port)
+     (slime-open-stream-to-lisp port)
      t)
     ((:new-package package prompt-string)
      (setf (slime-lisp-package) package)
