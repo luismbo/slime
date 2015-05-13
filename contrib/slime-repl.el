@@ -546,8 +546,8 @@ joined together."))
        (slime-lisp-package))
     ((:ok result)
      (slime-repl-insert-result result))
-    ((:abort condition)
-     (slime-repl-show-abort condition))))
+    ((:abort condition message)
+     (slime-repl-show-abort condition message))))
 
 (defun slime-repl-insert-result (result)
   (with-current-buffer (slime-output-buffer)
@@ -563,7 +563,7 @@ joined together."))
       (slime-repl-insert-prompt))
     (slime-repl-show-maximum-output)))
 
-(defun slime-repl-show-abort (condition)
+(defun slime-repl-show-abort (condition message)
   (with-current-buffer (slime-output-buffer)
     (save-excursion
       (slime-save-marker slime-output-start
@@ -571,6 +571,9 @@ joined together."))
           (goto-char slime-output-end)
           (insert-before-markers (format "; Evaluation aborted on %s.\n"
                                          condition))
+          (insert-before-markers (mapconcat (lambda (line)
+                                              (format ";   %s\n" line))
+                                            (split-string message "[\r\n]") ""))
           (slime-repl-insert-prompt))))
     (slime-repl-show-maximum-output)))
 

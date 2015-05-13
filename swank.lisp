@@ -1746,7 +1746,8 @@ Errors are trapped and invoke our debugger."
       (send-to-emacs `(:return ,(current-thread)
                                ,(if ok
                                     `(:ok ,result)
-                                    `(:abort ,(prin1-to-string condition)))
+                                    `(:abort ,(prin1-to-string condition)
+                                             ,(princ-to-string condition)))
                                ,id)))))
 
 (defvar *echo-area-prefix* "=> "
