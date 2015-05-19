@@ -12,6 +12,7 @@
                        slime-fancy-inspector
                        slime-fancy-trace
                        slime-fuzzy
+                       slime-macrostep
                        slime-presentations
                        slime-scratch
                        slime-references
