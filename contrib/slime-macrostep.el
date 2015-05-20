@@ -10,8 +10,7 @@
   (:authors "Jonathan Oddie <j.j.oddie@gmail.com>"
             "Luis Oliveira <loliveira@common-lisp.net>")
   (:license "GPL")
-  (:swank-dependencies swank-macrostep))
-
-
+  (:swank-dependencies swank-macrostep)
+  (:on-load (define-key slime-prefix-map "e" 'macrostep-expand)))
 
 (provide 'slime-macrostep)
