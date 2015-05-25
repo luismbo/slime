@@ -45,15 +45,15 @@
           (list pretty-expansion
                 (loop for form in all-macros
                       for (start end) in positions
-                      ;; this assumes that the operator starts right
-                      ;; next to the opening parenthesis. We could
-                      ;; probably be more forgiving.
-                      for op-end = (+ start (length (to-string (first form))))
-                      collect (list
-                               (if (member form macros) :macro :compiler-macro)
-                               start (position-line start pretty-expansion)
-                               op-end (position-line op-end pretty-expansion)
-                               end (position-line end pretty-expansion)))))))))
+                      when (and start end)
+                        collect (let ((op-name (to-string (first form))))
+                                  (list op-name
+                                        (if (member form macros)
+                                            :macro
+                                            :compiler-macro)
+                                        start
+                                        (position-line start pretty-expansion)
+                                        (length op-name))))))))))
 
 (defun position-line (position string)
   (let ((line 0)
@@ -138,13 +138,13 @@
 (defun marker-char-p (char)
   (<= #xe000 (char-code char) #xe8ff))
 
-(defun make-marker-char (position)
+(defun make-marker-char (id)
   ;; using the private-use characters U+E000..U+F8FF as markers, so
   ;; that's our upper limit for how many we can use.
-  (assert (<= position #x8ff))
-  (code-char (+ #xe000 position)))
+  (assert (<= 0 id #x8ff))
+  (code-char (+ #xe000 id)))
 
-(defun marker-char-position (char)
+(defun marker-char-id (char)
   (assert (marker-char-p char))
   (- (char-code char) #xe000))
 
@@ -178,27 +178,25 @@
           for char across string
           unless (whitespacep char)
             do (if (marker-char-p char)
-                   (push p (aref positions (marker-char-position char)))
+                   (push p (aref positions (marker-char-id char)))
                    (incf p)))
     (map 'list #'reverse positions)))
 
+(defun find-non-whitespace-position (string position)
+  (loop with non-whitespace-position = -1
+        for i from 0 and char across string
+        unless (whitespacep char)
+          do (incf non-whitespace-position)
+        until (eql non-whitespace-position position)
+        finally (return i)))
+
 (defun collect-form-positions (expansion printed-expansion forms)
-  (let* ((annotated-output
-           (pprint-to-string expansion
-                             (make-tracking-pprint-dispatch forms)))
-         (marker-positions
-           (collect-marker-positions annotated-output (length forms))))
-    (loop with i = -1 and non-whitespace-position = -1
-          for (start end) in marker-positions
-          collect (flet ((find-next (position)
-                           (loop until (or (eql non-whitespace-position position)
-                                           (= (1- (length printed-expansion))
-                                              (1+ i)))
-                                 unless (whitespacep (char printed-expansion
-                                                           (incf i)))
-                                   do (incf non-whitespace-position))
-                           i))
-                    (list (find-next start)
-                          (find-next end))))))
+  (loop for (start end)
+          in (collect-marker-positions
+              (pprint-to-string expansion (make-tracking-pprint-dispatch forms))
+              (length forms))
+        collect (when (and start end)
+                  (list (find-non-whitespace-position printed-expansion start)
+                        (find-non-whitespace-position printed-expansion end)))))
 
 (provide :swank-macrostep)
