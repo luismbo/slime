@@ -395,20 +395,35 @@
                         (location-for-reader-error condition)
                         (location-for-warning condition))))))
 
+(defun condition-pathname-and-position (condition)
+  (let ((context #+(version>= 9 0)
+                 (getf (slot-value condition 'excl::plist)
+                       :source-context)))
+    (if context
+        (values (excl::source-context-pathname context)
+                (when-let (start-char (excl::source-context-start-char context))
+                  (1+ start-char)))
+        (let ((loc (getf (slot-value condition 'excl::plist) :loc)))
+          (when loc
+            (destructuring-bind (file . pos) loc
+              (let ((start (if (consp pos) ; 8.2 and newer
+                               (car pos)
+                               pos)))
+                (values file (1+ start)))))))))
+
 (defun location-for-warning (condition)
-  (let ((loc (getf (slot-value condition 'excl::plist) :loc)))
+  (multiple-value-bind (pathname position)
+      (condition-pathname-and-position condition)
     (cond (*buffer-name*
            (make-location
             (list :buffer *buffer-name*)
-            (list :offset *buffer-start-position* 0)))
-          (loc
-           (destructuring-bind (file . pos) loc
-             (let ((start (cond ((consp pos) ; 8.2 and newer
-                                 (car pos))
-                                (t pos))))
-               (make-location
-                (list :file (namestring (truename file)))
-                (list :position (1+ start))))))
+            (if position
+                (list :position position)
+                (list :offset *buffer-start-position* 0))))
+          (pathname
+           (make-location
+            (list :file (namestring (truename pathname)))
+            (list :position position)))
           (t
            (make-error-location "No error location available.")))))
 
