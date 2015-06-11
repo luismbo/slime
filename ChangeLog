@@ -1,3 +1,25 @@
+2015-11-16  Luís Oliveira  <loliveira@common-lisp.net>
+
+	Take advantage of ACL 10.0's improved source locations for
+	compiler warnings. (With help from Duane Rettig.)
+
+	* swank/allegro.lisp (compiler-warning-location)
+	(condition-pathname-and-position): New functions merging
+	`location-for-warning' and `location-for-reader-error' that
+	furthermore takes advantage of ACL 10.0's new source-context
+	information, when available.
+	(handle-compiler-warning): In ACL 10.0, also handle undefined
+	function warnings when compiling from a buffer. Use
+	`compiler-warning-location'.
+	(swank-compile-file): Enable various debug switches.
+	(write-tracking-preamble): Update EXCL::*PARTIAL-SOURCE-FILE-P* at
+	compile time as well, otherwise the compiler will store source
+	locations pointing to the temporary file. Increase the preamble's
+	length to accomodate the larger size.
+	(compile-from-temp-file): Remove comment about lldb being
+	required. Lots of other SWANK things depend on lldb and it's
+	already required at the top of the file.
+
 2015-06-01  Luís Oliveira  <loliveira@common-lisp.net>
 
 	* swank/sbcl.lisp: Added workaround for a bug in SBCL 1.2.12's
