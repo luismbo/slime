@@ -391,27 +391,31 @@
                       (reader-error  :read-error)
                       (error         :error))
           :message (format nil "~A" condition)
-          :location (if (typep condition 'reader-error)
-                        (location-for-reader-error condition)
-                        (location-for-warning condition))))))
+          :location (compiler-warning-location condition)))))
 
 (defun condition-pathname-and-position (condition)
   (let ((context #+(version>= 9 0)
                  (getf (slot-value condition 'excl::plist)
                        :source-context)))
-    (if context
-        (values (excl::source-context-pathname context)
-                (when-let (start-char (excl::source-context-start-char context))
-                  (1+ start-char)))
-        (let ((loc (getf (slot-value condition 'excl::plist) :loc)))
-          (when loc
-            (destructuring-bind (file . pos) loc
-              (let ((start (if (consp pos) ; 8.2 and newer
-                               (car pos)
-                               pos)))
-                (values file (1+ start)))))))))
+    (cond (context
+           (values (excl::source-context-pathname context)
+                   (when-let (start-char (excl::source-context-start-char context))
+                     (1+ start-char))))
+          ((typep condition 'reader-error)
+           (let ((pos  (car (last (slot-value condition 'excl::format-arguments))))
+                 (file (pathname (stream-error-stream condition))))
+             (when (integerp pos)
+               (values file pos))))
+          (t
+           (let ((loc (getf (slot-value condition 'excl::plist) :loc)))
+             (when loc
+               (destructuring-bind (file . pos) loc
+                 (let ((start (if (consp pos) ; 8.2 and newer
+                                  (car pos)
+                                  pos)))
+                   (values file (1+ start))))))))))
 
-(defun location-for-warning (condition)
+(defun compiler-warning-location (condition)
   (multiple-value-bind (pathname position)
       (condition-pathname-and-position condition)
     (cond (*buffer-name*
@@ -426,17 +430,6 @@
             (list :position position)))
           (t
            (make-error-location "No error location available.")))))
-
-(defun location-for-reader-error (condition)
-  (let ((pos  (car (last (slot-value condition 'excl::format-arguments))))
-        (file (pathname (stream-error-stream condition))))
-    (if (integerp pos)
-        (if *buffer-name*
-            (make-location `(:buffer ,*buffer-name*)
-                           `(:offset ,*buffer-start-position* ,pos))
-            (make-location `(:file ,(namestring (truename file)))
-                           `(:position ,pos)))
-        (make-error-location "No error location available."))))
 
 ;; TODO: report it as a bug to Franz that the condition's plist
 ;; slot contains (:loc nil).
