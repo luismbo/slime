@@ -394,7 +394,7 @@
           :location (compiler-warning-location condition)))))
 
 (defun condition-pathname-and-position (condition)
-  (let ((context #+(version>= 9 0)
+  (let ((context #+(version>= 10 0)
                  (getf (slot-value condition 'excl::plist)
                        :source-context)))
     (cond (context
