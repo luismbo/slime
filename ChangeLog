@@ -1,16 +1,11 @@
-2015-05-07  Luís Oliveira  <loliveira@common-lisp.net>
+2015-06-01  Luís Oliveira  <loliveira@common-lisp.net>
 
-	Review slime-connection-list commands and bindings. Initial patch
-	courtesy of Attila Lendvai.
+	* swank/sbcl.lisp: Added workaround for a bug in SBCL 1.2.12's
+	SB-EXT:RESTRICT-COMPILER-POLICY. Courtesy of Stas Boukarev.
 
-	* slime.el (slime-disconnect-connection-at-point): New function.
-	(slime-connection-list-quit-inferior-lisp): Renamed from
-	slime-quit-connection-at-point and added confirmation message.
-	(slime-connection-list-restart-inferior-lisp): Renamed from
-	slime-restart-connection-at-point and added confirmation message.
-	(slime-connection-list-mode-map): Bind "k" to
-	slime-disconnect-connection-at-point and make the quit and restart
-	bindings less likely to be triggered by mistake.
+2015-05-20  Helmut Eller  <heller@common-lisp.net>
+
+	* slime.el (slime-xref-mode-map): Bind . and , for compatibility.
 
 2015-05-07  Attila Lendvai  <attila.lendvai@gmail.com>
 

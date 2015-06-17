@@ -13,6 +13,7 @@
                        slime-fancy-trace
                        slime-fuzzy
                        slime-macrostep
+                       slime-mdot-fu
                        slime-presentations
                        slime-scratch
                        slime-references
