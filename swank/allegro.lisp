@@ -534,9 +534,6 @@ to do this, this factors in the length of the inserted header itself."
        (declare (ignore warnings?))
        (when binary-filename
          (let ((excl:*load-source-file-info* t)
-               ;; NOTE: requires lldb. jt -- don't know the meaning of
-               ;; this note.
-               ;;
                #+(version>= 8 2)
                (excl:*load-source-debug-info* t))
            excl::*source-pathname*
