@@ -497,18 +497,19 @@ to do this, this factors in the length of the inserted header itself."
   (with-standard-io-syntax
     (let* ((*package* (find-package :keyword))
            (source-pathname-form
-            `(cl:eval-when (:compile-toplevel :load-toplevel :execute)
-               (cl:setq excl::*source-pathname*
-                        (pathname ,(sys::frob-source-file file)))))
+             `(cl:eval-when (:compile-toplevel :load-toplevel :execute)
+                (cl:setq excl::*source-pathname*
+                         (pathname ,(sys::frob-source-file file)))))
            (source-pathname-string (write-to-string source-pathname-form))
-           (position-form-length-bound 80) ; should be enough for everyone
+           (position-form-length-bound 160) ; should be enough for everyone
            (header-length (+ (length source-pathname-string)
                              position-form-length-bound))
            (position-form
-            `(cl:setq excl::*partial-source-file-p* ,(- file-offset
-                                                        header-length
-                                                        1 ; for the newline
-                                                        )))
+             `(cl:eval-when (:compile-toplevel :load-toplevel :execute)
+                (cl:setq excl::*partial-source-file-p* ,(- file-offset
+                                                           header-length
+                                                           1 ; for the newline
+                                                           ))))
            (position-form-string (write-to-string position-form))
            (padding-string (make-string (- position-form-length-bound
                                            (length position-form-string))
