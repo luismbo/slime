@@ -466,7 +466,12 @@
   (handler-case
       (with-compilation-hooks ()
         (let ((*buffer-name* nil)
-              (*compile-filename* input-file))
+              (*compile-filename* input-file)
+              #+(version>= 8 2)
+              (compiler:save-source-level-debug-info-switch t)
+              (excl:*load-source-file-info* t)
+              #+(version>= 8 2)
+              (excl:*load-source-debug-info* t))
           (compile-file *compile-filename*
                         :output-file output-file
                         :load-after-compile load-p
