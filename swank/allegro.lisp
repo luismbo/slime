@@ -370,7 +370,7 @@
 
 (defun handle-compiler-warning (condition)
   (declare (optimize (debug 3) (speed 0) (space 0)))
-  (cond ((and (not *buffer-name*)
+  (cond ((and #-(version>= 10 0) (not *buffer-name*)
               (compiler-undefined-functions-called-warning-p condition))
          (handle-undefined-functions-warning condition))
         ((and (typep condition 'excl::compiler-note)
