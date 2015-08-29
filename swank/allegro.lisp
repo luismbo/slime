@@ -1048,3 +1048,66 @@ to do this, this factors in the length of the inserted header itself."
 
 (defimplementation wrapped-p (spec indicator)
   (getf (excl:fwrap-order (process-fspec-for-allegro spec)) indicator))
+
+;;;; Stepper
+
+(define-condition stepper-breakpoint ()
+  ((info :accessor info-of :initform nil)
+   (ldb-code :accessor ldb-code-of))
+  (:report (lambda (condition stream)
+             (format stream "~{~a~^~%~}" (info-of condition)))))
+
+(defparameter *next-stepper-breakpoint* nil)
+
+(defun slime-stepper-backend-format (kind string-or-fn &rest args)
+  (when (null *next-stepper-breakpoint*)
+    (setf *next-stepper-breakpoint* (make-condition 'stepper-breakpoint)))
+  (push (format nil "[~a] ~?" kind string-or-fn args)
+        (info-of *next-stepper-breakpoint*)))
+
+(defun slime-stepper-action-available-p (bpt action)
+  (member action
+          (funcall (excl::ldb-language-list-exits
+                    (excl::ldb-code-language (ldb-code-of bpt)))
+                   (ldb-code-of bpt)
+                   nil             ; sliding?
+                   )))
+
+(defun slime-stepper-backend-repl-interaction (ldb-code)
+  (assert (excl::ldb-code-p ldb-code))
+  (let ((bpt *next-stepper-breakpoint*))
+    (setf *next-stepper-breakpoint* nil)
+    (setf (ldb-code-of bpt) ldb-code)
+    (restart-case (invoke-debugger bpt)
+      (step-into ()
+        ;; :test (lambda (c)
+        ;;         (declare (ignore c))
+        ;;         (slime-stepper-action-available-p bpt :into))
+        :into)
+      (step-over ()
+        ;; :test (lambda (c)
+        ;;         (declare (ignore c))
+        ;;         (slime-stepper-action-available-p bpt :over))
+        :over)
+      (step-across ()
+        ;; :test (lambda (c)
+        ;;         (declare (ignore c))
+        ;;         (slime-stepper-action-available-p bpt :over))
+        :across)
+      (continue () :cont))))
+
+(defun make-slime-stepper-backend ()
+  (flet ((backend-format (&rest args)
+           (apply #'slime-stepper-backend-format args))
+         (backend-repl-interaction (&rest args)
+           (apply #'slime-stepper-backend-repl-interaction args)))
+    (excl::add-ldb-backend :name :slime-stepper
+                           :format #'backend-format
+                           :repl-interaction #'backend-repl-interaction)))
+
+(defun reset-current-ldb-backend ()
+  (setq excl::*current-ldb-backend* (make-slime-stepper-backend)))
+
+;; TODO: set this in the repl thread only, maybe, or at least make
+;; this global setting optional.
+(reset-current-ldb-backend)
