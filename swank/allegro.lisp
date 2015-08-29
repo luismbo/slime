@@ -1065,45 +1065,38 @@ to do this, this factors in the length of the inserted header itself."
   (push (format nil "[~a] ~?" kind string-or-fn args)
         (info-of *next-stepper-breakpoint*)))
 
-(defun slime-stepper-action-available-p (bpt action)
-  (member action
-          (funcall (excl::ldb-language-list-exits
-                    (excl::ldb-code-language (ldb-code-of bpt)))
-                   (ldb-code-of bpt)
-                   nil             ; sliding?
-                   )))
-
 (defun slime-stepper-backend-repl-interaction (ldb-code)
-  (assert (excl::ldb-code-p ldb-code))
   (let ((bpt *next-stepper-breakpoint*))
     (setf *next-stepper-breakpoint* nil)
-    (setf (ldb-code-of bpt) ldb-code)
-    (restart-case (invoke-debugger bpt)
-      (step-into ()
-        ;; :test (lambda (c)
-        ;;         (declare (ignore c))
-        ;;         (slime-stepper-action-available-p bpt :into))
-        :into)
-      (step-over ()
-        ;; :test (lambda (c)
-        ;;         (declare (ignore c))
-        ;;         (slime-stepper-action-available-p bpt :over))
-        :over)
-      (step-across ()
-        ;; :test (lambda (c)
-        ;;         (declare (ignore c))
-        ;;         (slime-stepper-action-available-p bpt :over))
-        :across)
-      (continue () :cont))))
+    (cond ((not (excl::ldb-code-p ldb-code))
+           :over)
+          ((eq (excl::ldb-code-entry-type ldb-code) :early)
+           :over)
+          (t
+           (setf (ldb-code-of bpt) ldb-code)
+           (restart-case (invoke-debugger bpt)
+             ;; single-step and follow any calls into deeper functions.
+             (step-into () :into)
+             ;; single-step, but skip over any calls.
+             (step-over () :over)
+             ;; continue executing until the current function returns.
+             (return () :return)
+             ;; continue past all breakpoints; *step-cont-count* contains
+             ;; count of times through this breakpoint before stopping at it.
+             (continue () :cont))))))
 
 (defun make-slime-stepper-backend ()
-  (flet ((backend-format (&rest args)
-           (apply #'slime-stepper-backend-format args))
-         (backend-repl-interaction (&rest args)
-           (apply #'slime-stepper-backend-repl-interaction args)))
-    (excl::add-ldb-backend :name :slime-stepper
-                           :format #'backend-format
-                           :repl-interaction #'backend-repl-interaction)))
+  ;; these anonymous functions are there to simultaneously appease
+  ;; ADD-LDB-BACKEND (which is not content to receive a function
+  ;; designator and really wants a function object) and the SWANK
+  ;; developer who doesn't want to reset the ldb backend each time a
+  ;; change is performed to the stepper.
+  (excl::add-ldb-backend
+   :name :slime-stepper
+   :format (lambda (&rest args)
+             (apply #'slime-stepper-backend-format args))
+   :repl-interaction (lambda (&rest args)
+                       (apply #'slime-stepper-backend-repl-interaction args))))
 
 (defun reset-current-ldb-backend ()
   (setq excl::*current-ldb-backend* (make-slime-stepper-backend)))
