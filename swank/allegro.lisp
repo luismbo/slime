@@ -1065,15 +1065,41 @@ to do this, this factors in the length of the inserted header itself."
   (push (format nil "[~a] ~?" kind string-or-fn args)
         (info-of *next-stepper-breakpoint*)))
 
+(defun slime-stepper-return-values (bpt)
+  (let ((ldb-code (ldb-code-of bpt)))
+    ;; (push "[watwatwat]~%" (info-of bpt))
+    (when (and (excl::ldb-code-p ldb-code)
+               (eq :ret (excl::ldb-code-branch-type ldb-code)))
+      (let* ((context (excl::find-context))
+             (fd (and context (excl::int-next-newer-frame context))))
+        ;; (push (format nil "[context] ~a~%" context) (info-of bpt))
+        ;; (push (format nil "[fd] ~a~%" fd) (info-of bpt))
+        (when fd
+          (if (eq (excl::frame-descriptor-name fd)
+                  'excl::byte-break-context)
+              ;; a byte compiled function.
+              (let ((bi (excl::frame-descriptor-newer-bi context)))
+                (when (and bi (> bi 1))
+                  (svref excl::*byte-stack* (- bi 2))))
+              (let* ((regname (cdr (assoc :retval
+                                          excl::*resave-context-sym-registers*)))
+                     (ent2 (assoc regname excl::*resave-context-registers*)))
+                ;; (push (format nil "[ent2] ~a~%" ent2) (info-of bpt))
+                (when ent2
+                  (push (format nil "[LOS RETURN VALUES] ~a~%"
+                                (excl::md-access-raw fd (cadr ent2) (cdr ent2)))
+                        (info-of bpt))))))))))
+
 (defun slime-stepper-backend-repl-interaction (ldb-code)
   (let ((bpt *next-stepper-breakpoint*))
     (setf *next-stepper-breakpoint* nil)
-    (cond ((not (excl::ldb-code-p ldb-code))
-           :over)
-          ((eq (excl::ldb-code-entry-type ldb-code) :early)
-           :over)
+    (cond ;; ((not (excl::ldb-code-p ldb-code))
+          ;;  :over)
+          ;; ((eq (excl::ldb-code-entry-type ldb-code) :early)
+          ;;  :over)
           (t
            (setf (ldb-code-of bpt) ldb-code)
+           (slime-stepper-return-values bpt)
            (restart-case (invoke-debugger bpt)
              ;; single-step and follow any calls into deeper functions.
              (step-into () :into)
@@ -1097,6 +1123,9 @@ to do this, this factors in the length of the inserted header itself."
              (apply #'slime-stepper-backend-format args))
    :repl-interaction (lambda (&rest args)
                        (apply #'slime-stepper-backend-repl-interaction args))))
+
+;; XXX: figure the best place to set this.
+(setq excl::*last-slide-direction* 0)
 
 (defun reset-current-ldb-backend ()
   (setq excl::*current-ldb-backend* (make-slime-stepper-backend)))
