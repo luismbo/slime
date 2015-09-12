@@ -1069,7 +1069,7 @@ to do this, this factors in the length of the inserted header itself."
   (let ((ldb-code (ldb-code-of bpt)))
     ;; (push "[watwatwat]~%" (info-of bpt))
     (when (and (excl::ldb-code-p ldb-code)
-               (eq :ret (excl::ldb-code-branch-type ldb-code)))
+               #+nil (eq :ret (excl::ldb-code-branch-type ldb-code)))
       (let* ((context (excl::find-context))
              (fd (and context (excl::int-next-newer-frame context))))
         ;; (push (format nil "[context] ~a~%" context) (info-of bpt))
