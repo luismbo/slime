@@ -814,6 +814,26 @@ NIL."
                    (values new-form expanded)))))
     (frob form env)))
 
+(definterface collect-macro-forms (form &optional env)
+  "Collect subforms of FORM which undergo (compiler-)macro expansion.
+Returns two values: a list of macro forms and a list of compiler macro
+forms."
+  (let ((real-macroexpand-hook *macroexpand-hook*))
+    (macrolet ((make-form-collector (variable)
+                 `(lambda (macro-function form environment)
+                    (setq ,variable (cons form ,variable))
+                    (funcall real-macroexpand-hook
+                             macro-function form environment))))
+      (let* ((macro-forms '())
+             (compiler-macro-forms '())
+             (*macroexpand-hook* (make-form-collector macro-forms))
+             (expansion (ignore-errors (macroexpand-all form)))
+             (*macroexpand-hook* (make-form-collector compiler-macro-forms)))
+        (handler-bind ((warning #'muffle-warning))
+          (ignore-errors
+            (compile nil `(lambda () ,expansion))))
+        (values macro-forms compiler-macro-forms)))))
+
 (definterface format-string-expand (control-string)
   "Expand the format string CONTROL-STRING."
   (macroexpand `(formatter ,control-string)))

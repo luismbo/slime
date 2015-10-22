@@ -1077,6 +1077,22 @@ Return a list of the form (NAME LOCATION)."
 (defimplementation macroexpand-all (form)
   (sb-cltl2:macroexpand-all form))
 
+(defimplementation collect-macro-forms (form &optional environment)
+  (let ((macro-forms '())
+        (compiler-macro-forms '()))
+    (sb-walker:walk-form
+     form environment
+     (lambda (form context environment)
+       (declare (ignore context))
+       (when (and (consp form)
+                  (symbolp (car form)))
+         (cond ((macro-function (car form) environment)
+                (push form macro-forms))
+               ((compiler-macro-function (car form) environment)
+                (push form compiler-macro-forms))))
+       form))
+    (values macro-forms compiler-macro-forms)))
+
 
 ;;; Debugging
 

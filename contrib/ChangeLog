@@ -1,3 +1,11 @@
+2015-10-19  Jon Oddie  <j.j.oddie@gmail.com>
+
+	Add `slime-macrostep' contrib (fancy in-place macroexpansion).
+
+	* slime-macrostep.el: New file.
+	* swank-macrostep.lisp: New file.
+	* test/slime-macrostep-tests.el: New file.
+
 2015-10-11  Helmut Eller  <heller@common-lisp.net>
 
 	* slime-repl.el (slime-repl-mode): Delete remaining use of
