@@ -818,12 +818,15 @@ NIL."
   "Collect subforms of FORM which undergo (compiler-)macro expansion.
 Returns two values: a list of macro forms and a list of compiler macro
 forms."
+  (declare (ignore env))
   (let ((real-macroexpand-hook *macroexpand-hook*))
     (macrolet ((make-form-collector (variable)
                  `(lambda (macro-function form environment)
-                    (setq ,variable (cons form ,variable))
-                    (funcall real-macroexpand-hook
-                             macro-function form environment))))
+                    (let ((result (funcall real-macroexpand-hook
+                                           macro-function form environment)))
+                      (unless (eq result form)
+                        (push form ,variable))
+                      result))))
       (let* ((macro-forms '())
              (compiler-macro-forms '())
              (*macroexpand-hook* (make-form-collector macro-forms))
