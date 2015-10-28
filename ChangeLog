@@ -2,6 +2,8 @@
 
 	Add support functions for new `slime-macrostep' contrib.
 
+	* slime.el: Depend on macrostep 0.9.
+
 	* lib/macrostep.el: New file.  This is a bundled version of the
 	library developed at http://github.com/joddie/macrostep and also
 	available via MELPA.  The bundled copy will be used as a fallback
