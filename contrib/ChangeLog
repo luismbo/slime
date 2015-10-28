@@ -5,6 +5,7 @@
 	* slime-macrostep.el: New file.
 	* swank-macrostep.lisp: New file.
 	* test/slime-macrostep-tests.el: New file.
+	* slime-fancy.el: Require slime-macrostep.
 
 2015-10-11  Helmut Eller  <heller@common-lisp.net>
 
