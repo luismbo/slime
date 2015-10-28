@@ -19,40 +19,46 @@
 
 (in-package #:swank-macrostep)
 
+(defun expand-form-once (form compiler-macros?)
+  (multiple-value-bind (expansion expanded?)
+      (macroexpand-1 form)
+    (if expanded?
+	(values expansion nil)
+	(if (not compiler-macros?)
+	    (values nil "Not a macro form")
+	    (multiple-value-bind (expansion expanded?)
+		(compiler-macroexpand-1 form)
+	      (if expanded?
+		  (values expansion nil)
+		  (values nil "Not a macro or compiler-macro form")))))))
+
 (defslimefun macrostep-expand-1 (string &optional compiler-macros?)
   (with-buffer-syntax ()
-    (let* ((form (read-from-string string))
-           (expansion
-             (multiple-value-bind (expansion expanded?)
-                 (macroexpand-1 form)
-               (if expanded?
-                   expansion
-                   (if (not compiler-macros?)
-                       (error "Not a macro form.")
-                       (multiple-value-bind (expansion expanded?)
-                           (compiler-macroexpand-1 form)
-                         (if expanded?
-                             expansion
-                             (error "Not a macro or compiler-macro form.")))))))
-           (pretty-expansion (pprint-to-string expansion)))
-      (multiple-value-bind (macros compiler-macros)
-          (collect-macro-forms expansion)
-        (let* ((all-macros (append macros compiler-macros))
-               (positions (collect-form-positions expansion
-                                                  pretty-expansion
-                                                  all-macros)))
-          (list pretty-expansion
-                (loop for form in all-macros
-                      for (start end) in positions
-                      when (and start end)
-                        collect (let ((op-name (to-string (first form))))
-                                  (list op-name
-                                        (if (member form macros)
-                                            :macro
-                                            :compiler-macro)
-                                        start
-                                        (position-line start pretty-expansion)
-                                        (length op-name))))))))))
+    (let ((form (read-from-string string)))
+      (multiple-value-bind (expansion error-message)
+	  (expand-form-once form compiler-macros?)
+	(if error-message
+	    (list nil nil error-message)
+	    (multiple-value-bind (macros compiler-macros)
+		(collect-macro-forms expansion)
+	      (let* ((all-macros (append macros compiler-macros))
+		     (pretty-expansion (pprint-to-string expansion))
+		     (positions (collect-form-positions expansion
+							pretty-expansion
+							all-macros)))
+		(list pretty-expansion
+		      (loop for form in all-macros
+			    for (start end) in positions
+			    when (and start end)
+			      collect (let ((op-name (to-string (first form))))
+					(list op-name
+					      (if (member form macros)
+						  :macro
+						  :compiler-macro)
+					      start
+					      (position-line start pretty-expansion)
+					      (length op-name))))
+		      nil))))))))
 
 (defun pprint-to-string (object &optional pprint-dispatch)
   (let ((*print-pprint-dispatch* (or pprint-dispatch *print-pprint-dispatch*)))
