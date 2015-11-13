@@ -916,6 +916,87 @@ SPECIAL-OPERATOR groups."
    ("Denominator" (denominator r))
    ("As float" (float r))))
 
+(defun count-digits (integer)
+  (check-type integer integer)
+  (setf integer (abs integer))
+  (if (zerop integer)
+      1
+      ;; Could use log instead but it might not be safe in every case
+      (do ((i 0 (1+ i)))
+	  ((< integer 1) i)
+	(setf integer (/ integer 10)))))
+
+(defun find-multiplier (d)
+  "Given an integer, d, of the form 2^m*5^n, compute c such that c*d = c*(2^m*5^n) = 10^max(m,n).
+Returns c and max(m,n). See http://wukix.com/lisp-decimals#theory for background."
+  (let (2^m 5^n	m n)
+    (setf 2^m (ash (1+ (logxor d (1- d))) -1))
+    (setf 5^n (/ d 2^m))
+    (setf m (1- (integer-length 2^m)))
+    (setf n (round (log 5^n 5)))
+    ;; Log and integer-length seem to work perfectly as used above even for
+    ;; extremely large numbers on SBCL. However, in case of any incorrectness
+    ;; due to precision, portability issues, etc., we check that the answer is
+    ;; fully correct before returning it to the caller.
+    (assert (= d (* (expt 2 m) (expt 5 n))))
+    (if (> m n)
+	(values (expt 5 (- m n)) m)
+	(values (expt 2 (- n m)) n))))
+
+(defun integer-to-digit-string (integer)
+  "Converts an integer into a base 10 string. The sign is ignored."
+  (check-type integer integer)
+  (setf integer (abs integer))
+  (if (zerop integer)
+      "0"
+      (let* ((digit-count (do ((x integer (truncate x 10))
+			       (i 0 (1+ i)))
+			      ((zerop x) i)))
+	     (str (make-string digit-count))
+	     (char-code-0 (char-code #\0))
+	     remainder)
+	(do ((i (1- digit-count) (1- i)))
+	    ((minusp i) str)
+	  (multiple-value-setq (integer remainder)
+	    (truncate integer 10))
+	  (setf (elt str i) (code-char (+ char-code-0 remainder)))))))
+
+(defun decimal-to-digits (number)
+  (multiple-value-bind (multiplier denominator-power)
+      (find-multiplier (denominator number))
+    (let* ((all-digits (* multiplier (numerator number)))
+	   (digit-count (count-digits all-digits))
+	   (decimal-mark-index (- digit-count denominator-power)))
+      (values decimal-mark-index (integer-to-digit-string all-digits)))))
+
+(defun decimal-to-string (x)
+  (setf x (abs x))
+  (multiple-value-bind (e string)
+      (decimal-to-digits x)
+    (with-output-to-string (stream)
+      (if (plusp e)
+	  (progn
+	    (write-string string stream :end (min (length string) e))
+	    (dotimes (i (- e (length string)))
+	      (write-char #\0 stream))
+	    (write-char #\. stream)
+	    (write-string string stream :start (min (length string) e)))
+	  (progn
+	    (write-string "." stream)
+	    (dotimes (i (- e))
+	      (write-char #\0 stream))
+	    (write-string string stream))))))
+
+(defun float-to-decimal (x)
+  (multiple-value-bind (significand exponent sign)
+      (integer-decode-float x)
+    (* sign
+       significand
+       (expt (float-radix x) exponent))))
+
+(defun float-to-decimal-string (x)
+  (decimal-to-string (float-to-decimal x)))
+
 (defmethod emacs-inspect ((f float))
   (cond
     ((> f most-positive-long-float)
@@ -927,12 +1008,15 @@ SPECIAL-OPERATOR groups."
     (t
      (multiple-value-bind (significand exponent sign) (decode-float f)
        (append
-	`("Scientific: " ,(format nil "~E" f) (:newline)
-			 "Decoded: "
-			 (:value ,sign) " * "
-			 (:value ,significand) " * "
-			 (:value ,(float-radix f)) "^"
-			 (:value ,exponent) (:newline))
+	`("Scientific: "
+	  ,(format nil "~E" f) (:newline)
+	  "Decimal: "
+	  ,(float-to-decimal-string f) (:newline)
+	  "Decoded: "
+	  (:value ,sign) " * "
+	  (:value ,significand) " * "
+	  (:value ,(float-radix f)) "^"
+	  (:value ,exponent) (:newline))
 	(label-value-line "Digits" (float-digits f))
 	(label-value-line "Precision" (float-precision f)))))))
 
