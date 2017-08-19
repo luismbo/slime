@@ -20,8 +20,6 @@
 (defvar slime-quicklisp-system-history nil
   "History list for Quicklisp system names.")
 
-
-
 (defun slime-read-quicklisp-system-name (&optional prompt default-value)
   "Read a Quick system name from the minibuffer, prompting with PROMPT."
   (let* ((completion-ignore-case nil)
@@ -40,6 +38,24 @@
   (slime-display-output-buffer)
   (slime-repl-shortcut-eval-async `(ql:quickload ,system)))
 
+;;; Quickstart Helper
+
+(defvar slime-quicklisp-quickstart-url
+  "https://beta.quicklisp.org/quicklisp.lisp")
+
+(defun slime-quicklisp-install ()
+  (interactive)
+  (let ((buffer (url-retrieve-synchronously slime-quicklisp-quickstart-url)))
+    (with-current-buffer buffer
+      (delete-region (point-min)
+                     (marker-position url-http-end-of-headers))
+      (set-buffer-file-coding-system 'unix)
+      (lisp-mode)
+      (let ((file (make-temp-file "quicklisp.lisp.")))
+        (write-file file)
+        (slime-load-file file)
+        (kill-buffer)))))
+
 ;;; REPL shortcuts
 
 (defslime-repl-shortcut slime-repl-quicklisp-quickload ("quicklisp-quickload" "ql")
@@ -47,5 +63,9 @@
               (interactive)
               (slime-quicklisp-quickload (slime-read-quicklisp-system-name))))
   (:one-liner "Load a system known to Quicklisp."))
+
+(defslime-repl-shortcut slime-repl-quicklisp-install ("quicklisp-install")
+  (:handler 'slime-quicklisp-install)
+  (:one-liner "Install Quicklisp."))
 
 (provide 'slime-quicklisp)
