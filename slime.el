@@ -1900,7 +1900,7 @@ Return nil if there's no process object for the connection."
 (defun slime-use-sigint-for-interrupt (&optional connection)
   (let ((c (or connection (slime-connection))))
     (cl-ecase (slime-communication-style c)
-      ((:fd-handler nil) t)
+      ((:fd-handler nil :loop) t)
       ((:spawn :sigio) nil))))
 
 (defvar slime-inhibit-pipelining t

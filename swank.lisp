@@ -160,7 +160,7 @@ Backend code should treat the connection structure as opaque.")
   ;; The list of packages represented in the cache:
   (indentation-cache-packages '())
   ;; The communication style used.
-  (communication-style nil :type (member nil :spawn :sigio :fd-handler))
+  (communication-style nil :type (member nil :loop :spawn :sigio :fd-handler))
   )
 
 (defun print-connection (conn stream depth)
@@ -209,7 +209,7 @@ Backend code should treat the connection structure as opaque.")
   (let ((conn (funcall (ecase style
                          (:spawn 
                           #'make-multithreaded-connection)
-                         ((:sigio nil :fd-handler)
+                         ((:sigio nil :loop :fd-handler)
                           #'make-singlethreaded-connection))
                        :socket socket
                        :socket-io stream
@@ -765,7 +765,7 @@ e.g.: (restart-loop (http-request url) (use-value (new) (setq url new)))"
         ((:fd-handler :sigio)
          (note)
          (add-fd-handler socket #'serve))
-        ((nil) (serve-loop))))
+        ((nil :loop) (serve-loop))))
     port))
 
 (defun stop-server (port)
@@ -819,6 +819,7 @@ if the file doesn't exist; otherwise the first line of the file."
     (singlethreaded-connection
      (ecase (connection.communication-style connection)
        ((nil) (simple-serve-requests connection))
+       (:loop (handle-requests-loop connection))
        (:sigio (install-sigio-handler connection))
        (:fd-handler (install-fd-handler connection))))))
 
@@ -828,7 +829,7 @@ if the file doesn't exist; otherwise the first line of the file."
      (cleanup-connection-threads connection))
     (singlethreaded-connection
      (ecase (connection.communication-style connection)
-       ((nil))
+       ((nil :loop))
        (:sigio (deinstall-sigio-handler connection))
        (:fd-handler (deinstall-fd-handler connection))))))
 
@@ -1235,6 +1236,12 @@ event was found."
 
 ;;;;;; Simple sequential IO
 
+(defun handle-requests-loop (connection)
+  (unwind-protect
+       (with-io-redirection (connection)
+         (loop (handle-requests connection nil)))
+    (close-connection connection nil (safe-backtrace))))
+
 (defun simple-serve-requests (connection)
   (unwind-protect
        (with-connection (connection)
@@ -1289,7 +1296,7 @@ event was found."
                 (with-io-redirection (connection)
                   (handle-requests connection t)))))
            ((member stdin ready)
-            ;; User typed something into the  *inferior-lisp* buffer,
+            ;; User typed something into the *inferior-lisp* buffer,
             ;; so do not redirect.
             (return (read-non-blocking stdin)))
            (t (assert (null ready)))))))
