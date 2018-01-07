@@ -273,7 +273,8 @@ This is set to nil after displaying the buffer.")
     (when slime-repl-popup-on-output
       (setq slime-repl-popup-on-output nil)
       (display-buffer (current-buffer)))
-    (slime-repl-show-maximum-output)))
+    (slime-repl-show-maximum-output)
+    (ansi-color-apply-on-region slime-output-start slime-output-end)))
 
 (defun slime-repl-emit-result (string &optional bol)
   ;; insert STRING and mark it as evaluation result
