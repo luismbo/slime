@@ -7488,18 +7488,16 @@ The returned bounds are either nil or non-empty."
   "Return t if the region from START to END contains a complete sexp."
   (save-excursion
     (goto-char start)
-    (cond ((looking-at "\\s *['`#]?[(\"]")
-           (ignore-errors
-             (save-restriction
-               (narrow-to-region start end)
-               ;; Keep stepping over blanks and sexps until the end of
-               ;; buffer is reached or an error occurs. Tolerate extra
-               ;; close parens.
-               (cl-loop do (skip-chars-forward " \t\r\n)")
-                        until (eobp)
-                        do (forward-sexp))
-               t)))
-          (t t))))
+    (ignore-errors
+     (save-restriction
+      (narrow-to-region start end)
+      ;; Keep stepping over blanks and sexps until the end of
+      ;; buffer is reached or an error occurs. Tolerate extra
+      ;; close parens.
+      (cl-loop do (skip-chars-forward " \t\r\n)")
+               until (eobp)
+               do (forward-sexp))
+      t))))
 
 
 ;;;; slime.el in pretty colors
