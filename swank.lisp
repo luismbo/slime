@@ -961,7 +961,9 @@ The processing is done in the extent of the toplevel restart."
 (defun dispatch-loop (connection)
   (let ((*emacs-connection* connection))
     (with-panic-handler (connection)
-      (loop (dispatch-event connection (receive))))))
+      ;; XXX: some of these events are actually outgoing. See XXX in
+      ;; SEND-TO-EMACS.
+      (loop (dispatch-incoming-event connection (receive))))))
 
 (defgeneric thread-for-evaluation (connection id)
   (:documentation "Find or create a thread to evaluate the next request.")
@@ -1015,9 +1017,16 @@ The processing is done in the extent of the toplevel restart."
 
 (defparameter *event-hook* nil)
 
-(defun dispatch-event (connection event)
-  "Handle an event triggered either by Emacs or within Lisp."
-  (log-event "dispatch-event: ~s~%" event)
+;; XXX: come up with a batter name for this function, or rename
+;; send-event and/or send-to-emacs.
+(defun send-event-to-emacs (event)
+  (encode-message event (current-socket-io)))
+
+;; XXX: consider replacing this dispatcher with a HANDLE-EVENT generic
+;; function. This would remove the need for hooks too.
+(defun dispatch-incoming-event (connection event)
+  "Handle an incoming event triggered by Emacs."
+  (log-event "dispatch-incoming-event: ~s~%" event)
   (or (run-hook-until-success *event-hook* connection event)
       (dcase event
         ((:emacs-rex form package thread-id id)
@@ -1026,34 +1035,47 @@ The processing is done in the extent of the toplevel restart."
                   (add-active-thread connection thread)
                   (send-event thread `(:emacs-rex ,form ,package ,id)))
                  (t
-                  (encode-message 
+                  (send-event-to-emacs
                    (list :invalid-rpc id
-                         (format nil "Thread not found: ~s" thread-id))
-                   (current-socket-io))))))
-        ((:return thread &rest args)
-         (remove-active-thread connection thread)
-         (encode-message `(:return ,@args) (current-socket-io)))
+                         (format nil "Thread not found: ~s" thread-id)))))))
         ((:emacs-interrupt thread-id)
          (interrupt-worker-thread connection thread-id))
-        (((:write-string 
-           :debug :debug-condition :debug-activate :debug-return :channel-send
-           :presentation-start :presentation-end
-           :new-package :new-features :ed :indentation-update
-           :eval :eval-no-wait :background-message :inspect :ping
-           :y-or-n-p :read-from-minibuffer :read-string :read-aborted :test-delay
-           :write-image)
-          &rest _)
-         (declare (ignore _))
-         (encode-message event (current-socket-io)))
         (((:emacs-pong :emacs-return :emacs-return-string) thread-id &rest args)
          (send-event (find-thread thread-id) (cons (car event) args)))
         ((:emacs-channel-send channel-id msg)
          (let ((ch (find-channel channel-id)))
-           (send-event (channel-thread ch) `(:emacs-channel-send ,ch ,msg))))
-        ((:reader-error packet condition)
-         (encode-message `(:reader-error ,packet 
-                                         ,(safe-condition-message condition))
-                         (current-socket-io))))))
+           (send-event (channel-thread ch) `(:emacs-channel-send ,ch ,msg)))))))
+
+;; XXX: there's not much dispatch going on here and this could be
+;; mostly replaced by SEND-EVENT-TO-EMACS. REMOVE-ACTIVE-THREAD and
+;; SAFE-CONDITION-MESSAGE should probably be in helper functions to be
+;; used instead of sending :RETURN/:READER-ERROR events directly,
+;; maybe?
+(defun dispatch-outgoing-event (connection event)
+  "Handle an outgoing event triggered within Lisp."
+  (log-event "dispatch-outgoing-event: ~s~%" event)
+  (dcase event
+    ((:return thread &rest args)
+     (remove-active-thread connection thread)
+     (send-event-to-emacs `(:return ,@args)))
+    ;; XXX: why make each event explicit? Pros: we have a list of
+    ;; supported events. Cons: we need to have an explicit list of
+    ;; supported events which is particularly cumbersome for for
+    ;; contribs.
+    (((:write-string
+       :debug :debug-condition :debug-activate :debug-return :channel-send
+       :presentation-start :presentation-end
+       :new-package :new-features :ed :indentation-update
+       :eval :eval-no-wait :background-message :inspect :ping
+       :y-or-n-p :read-from-minibuffer :read-string :read-aborted :test-delay
+       :write-image)
+      &rest _)
+     (declare (ignore _))
+     (send-event-to-emacs event))
+    ((:reader-error packet condition)
+     (encode-message `(:reader-error ,packet
+                                     ,(safe-condition-message condition))
+                     (current-socket-io)))))
 
 
 (defun send-event (thread event)
@@ -1074,9 +1096,12 @@ The processing is done in the extent of the toplevel restart."
     (let ((c *emacs-connection*))
       (etypecase c
         (multithreaded-connection
-         (send (mconn.control-thread c) event))
+         ;; XXX: annotate the event with direction (or something).
+         ;; (send (mconn.control-thread c) event)
+         ;; for now, call dispatch directly here.
+         (dispatch-outgoing-event c event))
         (singlethreaded-connection
-         (dispatch-event c event)))
+         (dispatch-outgoing-event c event)))
       (maybe-slow-down))))
   
 
@@ -1131,8 +1156,8 @@ event was found."
             )
            (t
             (assert (equal ready (list (current-socket-io))))
-            (dispatch-event connection
-                            (decode-message (current-socket-io))))))))
+            (dispatch-incoming-event connection
+                                     (decode-message (current-socket-io))))))))
 
 (defun poll-for-event (connection pattern)
   (let* ((c connection)
@@ -1223,7 +1248,7 @@ event was found."
 
 (defun dispatch-interrupt-event (connection)
   (with-connection (connection)
-    (dispatch-event connection `(:emacs-interrupt ,(current-thread-id)))))
+    (dispatch-incoming-event connection `(:emacs-interrupt ,(current-thread-id)))))
 
 (defun deinstall-fd-handler (connection)
   (log-event "deinstall-fd-handler~%")
